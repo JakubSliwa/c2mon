@@ -2,6 +2,9 @@ package cern.c2mon.shared.client.config;
 
 import lombok.Data;
 
+import cern.c2mon.shared.client.alarm.AlarmValue;
+import cern.c2mon.shared.client.tag.TransferTagImpl;
+
 /**
  * @author Justin Lewis Salmon
  */
@@ -34,9 +37,15 @@ public class ClientJmsProperties {
   private String heartbeatTopic = "c2mon.client.heartbeat";
 
   /**
-   * Name of the topic on which the server is publishing alarms
+   * Name of the topic on which the server is publishing {@link AlarmValue} objects as JSON string
    */
   private String alarmTopic = "c2mon.client.alarm";
+  
+  /**
+   * Name of the topic on which the server is publishing the full {@link TransferTagImpl} object, 
+   * including the nested {@link AlarmValue} objects that have changed.
+   */
+  private String alarmTopicForTagWithAlarms = "c2mon.client.alarmV2";
 
   /**
    * Topic on which all control tags are published
