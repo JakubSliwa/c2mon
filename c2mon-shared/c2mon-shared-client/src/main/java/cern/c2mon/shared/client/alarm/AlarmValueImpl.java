@@ -90,6 +90,7 @@ public final class AlarmValueImpl extends ClientRequestReport implements AlarmVa
 
   /** Description for the Tag to which the alarm is attached */
   @Element(required = false)
+  @Deprecated
   private String tagDescription;
 
   /** UTC timestamp of the alarm's last state change */
