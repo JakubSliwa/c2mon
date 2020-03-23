@@ -31,7 +31,6 @@ import org.springframework.stereotype.Service;
 
 import lombok.extern.slf4j.Slf4j;
 
-import cern.c2mon.server.cache.TagLocationService;
 import cern.c2mon.server.cache.alarm.AlarmAggregator;
 import cern.c2mon.server.cache.alarm.AlarmAggregatorListener;
 import cern.c2mon.server.client.config.ClientProperties;
@@ -39,7 +38,6 @@ import cern.c2mon.server.client.util.TransferObjectFactory;
 import cern.c2mon.server.common.alarm.Alarm;
 import cern.c2mon.server.common.alarm.TagWithAlarms;
 import cern.c2mon.server.common.alarm.TagWithAlarmsImpl;
-import cern.c2mon.server.common.component.Lifecycle;
 import cern.c2mon.server.common.config.ServerConstants;
 import cern.c2mon.server.common.republisher.Publisher;
 import cern.c2mon.server.common.republisher.Republisher;
@@ -50,15 +48,12 @@ import cern.c2mon.shared.client.tag.TransferTagValueImpl;
 import cern.c2mon.shared.util.jms.JmsSender;
 
 /**
- * Publishes active alarms to the C2MON client applications on the
- * alarm publication topic, specified using the property
- * jms.client.alarm.topic
+ * Publishes active alarms and the corresponding tag value to the C2MON client applications on the
+ * alarm publication topic.
  *
  * <p>Will attempt re-publication of alarms if JMS connection fails.
  *
- *
- * @author Manos, Mark Brightwell
- *
+ * @author Matthias Braeger
  */
 @Slf4j
 @Service
@@ -68,13 +63,11 @@ public class AlarmPublisherTagWithAlarms implements SmartLifecycle, AlarmAggrega
   /** Bean providing for sending JMS messages and waiting for a response */
   private final JmsSender jmsSender;
   
-  private final ClientProperties properties;
+  /** The configured JMS alarm topic, extracted from {@link ClientProperties} */
+  private final String tagWithAlarmsTopic;
   
   /** Listens for Tag updates, evaluates all associated alarms and passes the result */
   private final AlarmAggregator alarmAggregator;
-
-  /** Listener container lifecycle hook */
-  private Lifecycle listenerContainer;
 
   /** Contains re-publication logic */
   private final Republisher<TagWithAlarms> republisher;
@@ -85,19 +78,17 @@ public class AlarmPublisherTagWithAlarms implements SmartLifecycle, AlarmAggrega
   /**
    * Default Constructor
    * @param jmsSender Used for sending JMS messages and waiting for a response.
-   * @param cacheRegistrationService Used to register to Alarm updates.
-   * @param tagLocationService Reference to the tag location service singleton.
-   * Used to add tag information to the AlarmValue object.
+   * @param alarmAggregator Required to receive notifications when a tag has changed.
+   * @param properties The configured {@link ClientProperties}. Required to determine the JMS alarm topic.
    */
   @Autowired
   public AlarmPublisherTagWithAlarms(@Qualifier("alarmTopicPublisher") final JmsSender jmsSender, 
-      final TagLocationService tagLocationService,
       final AlarmAggregator alarmAggregator,
       final ClientProperties properties) {
 
     this.jmsSender = jmsSender;
     this.alarmAggregator = alarmAggregator;
-    this.properties = properties;
+    this.tagWithAlarmsTopic = properties.getJms().getTagWithAlarmsTopic();
     
     republisher = RepublisherFactory.createRepublisher(this, "TagWithAlarms");
   }
@@ -131,13 +122,11 @@ public class AlarmPublisherTagWithAlarms implements SmartLifecycle, AlarmAggrega
     log.debug("Starting Alarm publisher for TagWithAlarms");
     running = true;
     republisher.start();
-    listenerContainer.start();
   }
 
   @Override
   public void stop() {
     log.debug("Stopping Alarm publisher for TagWithAlarms");
-    listenerContainer.stop();
     republisher.stop();
     running = false;
   }
@@ -181,13 +170,13 @@ public class AlarmPublisherTagWithAlarms implements SmartLifecycle, AlarmAggrega
     TransferTagValueImpl tagValue = TransferObjectFactory.createTransferTagValue(tagWithAlarms);
     
     if (log.isTraceEnabled()) {
-      log.trace("Publishing alarm(s) with full tag object for tag id #{} to topic {}", tagWithAlarms.getTag().getId(), properties.getJms().getAlarmTopicForTagWithAlarms());
+      log.trace("Publishing alarm(s) with full tag object for tag id #{} to topic {}", tagWithAlarms.getTag().getId(), tagWithAlarmsTopic);
     }
 
     try {
-      jmsSender.sendToTopic(TransferTagSerializer.toJson(tagValue), properties.getJms().getAlarmTopicForTagWithAlarms());
+      jmsSender.sendToTopic(TransferTagSerializer.toJson(tagValue), tagWithAlarmsTopic);
     } catch (JmsException e) {
-      log.error("Error publishing alarm to clients - submitting for republication for tag #{} + alarms", tagWithAlarms.getTag().getId(), e);
+      log.error("Error publishing alarm(s) with full tag object to clients - submitting for republication for tag #{} + alarms", tagWithAlarms.getTag().getId(), e);
       republisher.publicationFailed(tagWithAlarms);
     }
     
