@@ -73,7 +73,7 @@ public class AlarmPublisherTagWithAlarms implements SmartLifecycle, AlarmAggrega
   private final Republisher<TagWithAlarms> republisher;
 
   /** Lifecycle flag */
-  private volatile boolean running = false;
+  private boolean running;
 
   /**
    * Default Constructor
