@@ -134,7 +134,7 @@ public class AlarmAggregatorImpl implements AlarmAggregator, C2monCacheListener<
       try {
         listener.notifyOnUpdate((Tag) tag.clone(), alarmList);
       } catch (CloneNotSupportedException e) {
-        log.error("Unexpected exception caught: clone should be implemented for this class! " + "Alarm & tag listener was not notified: " + listener.getClass().getSimpleName());
+        log.error("Unexpected exception caught: clone should be implemented for this class! Alarm & tag listener was not notified: {}", listener.getClass().getSimpleName(), e);
       }
     }
   }
@@ -143,7 +143,15 @@ public class AlarmAggregatorImpl implements AlarmAggregator, C2monCacheListener<
   public void onSupervisionChange(final Tag tag) {
     log.trace("Evaluating alarm for tag " + tag.getId() + " due to supervision status notification.");
 
-    evaluateAlarms(tag);
+    List<Alarm> alarms = evaluateAlarms(tag);
+    
+    for (AlarmAggregatorListener listener : listeners) {
+      try {
+        listener.notifyOnSupervisionChange((Tag) tag.clone(), alarms);
+      } catch (CloneNotSupportedException e) {
+        log.error("Unexpected exception caught: clone should be implemented for this class! Alarm & tag listener was not notified: {}", listener.getClass().getSimpleName(), e);
+      }
+    }
   }
 
   private List<Alarm> evaluateAlarms(final Tag tag) {

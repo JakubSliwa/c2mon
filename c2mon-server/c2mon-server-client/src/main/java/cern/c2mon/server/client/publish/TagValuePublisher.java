@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright (C) 2010-2016 CERN. All rights not expressly granted are reserved.
+ * Copyright (C) 2010-2020 CERN. All rights not expressly granted are reserved.
  *
  * This file is part of the CERN Control and Monitoring Platform 'C2MON'.
  * C2MON is free software: you can redistribute it and/or modify it under the
@@ -175,6 +175,11 @@ public class TagValuePublisher implements AlarmAggregatorListener, Configuration
       log.error("notifyOnUpdate - Error publishing tag update to topic for tag " + tagWithAlarms.getTag().getId() + " - submitting for republication", e);
       republisher.publicationFailed(tagWithAlarms);
     }
+  }
+  
+  @Override
+  public void notifyOnSupervisionChange(Tag tag, List<Alarm> alarms) {
+    // Do nothing with this information, as C2MON Client API is treating that event locally    
   }
 
   @Override

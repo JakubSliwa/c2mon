@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright (C) 2010-2016 CERN. All rights not expressly granted are reserved.
+ * Copyright (C) 2010-2020 CERN. All rights not expressly granted are reserved.
  *
  * This file is part of the CERN Control and Monitoring Platform 'C2MON'.
  * C2MON is free software: you can redistribute it and/or modify it under the
@@ -44,20 +44,19 @@ import cern.c2mon.shared.util.jms.JmsSender;
 import cern.c2mon.shared.util.json.GsonFactory;
 
 /**
- * Publishes active alarms to the C2MON client applications on the
- * alarm publication topic, specified using the property
- * jms.client.alarm.topic
+ * Publishes active alarms as {@link AlarmValue} object to the C2MON Client API on the
+ * alarm publication topic, specified using the property <code>jms.client.alarm.topic</code>
  *
  * <p>Will attempt re-publication of alarms if JMS connection fails.
  *
- *
+ * @deprecated Will be removed in the upcoming versions, in favor of {@link AlarmPublisher}
  * @author Manos, Mark Brightwell
- *
  */
 @Slf4j
 @Service
 @ManagedResource(description = "Bean publishing Alarm updates to the clients")
-public class AlarmPublisher implements C2monCacheListener<Alarm>, SmartLifecycle, Publisher<AlarmValue>  {
+@Deprecated
+public class SimpleAlarmPublisher implements C2monCacheListener<Alarm>, SmartLifecycle, Publisher<AlarmValue>  {
 
   /** Bean providing for sending JMS messages and waiting for a response */
   private final JmsSender jmsSender;
@@ -88,7 +87,7 @@ public class AlarmPublisher implements C2monCacheListener<Alarm>, SmartLifecycle
    * Used to add tag information to the AlarmValue object.
    */
   @Autowired
-  public AlarmPublisher(@Qualifier("alarmTopicPublisher") final JmsSender pJmsSender
+  public SimpleAlarmPublisher(@Qualifier("alarmTopicPublisher") final JmsSender pJmsSender
       , final CacheRegistrationService pCacheRegistrationService
       , final TagLocationService pTagLocationService) {
 
@@ -126,15 +125,14 @@ public class AlarmPublisher implements C2monCacheListener<Alarm>, SmartLifecycle
     if (tagLocationService.isInTagCache(tagId)) {
       Tag tag = tagLocationService.getCopy(tagId);
       alarmValue = (TransferObjectFactory.createAlarmValue(alarm, tag));
-    }
-    else {
+    } else {
       log.warn("notifyElementUpdated() - unrecognized Tag with id " + tagId);
       alarmValue = (TransferObjectFactory.createAlarmValue(alarm));
     }
     try {
       publish(alarmValue);
     } catch (JmsException e) {
-      log.error("Error publishing alarm to clients - submitting for republication. Alarm id is " + alarmValue.getId(), e);
+      log.error("Error publishing alarm to clients - submitting for republication. Alarm id is {}", alarmValue.getId(), e);
       republisher.publicationFailed(alarmValue);
     }
   }

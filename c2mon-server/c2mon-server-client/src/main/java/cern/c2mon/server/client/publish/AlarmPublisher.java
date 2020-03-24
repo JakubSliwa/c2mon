@@ -58,7 +58,7 @@ import cern.c2mon.shared.util.jms.JmsSender;
 @Slf4j
 @Service
 @ManagedResource(description = "Bean publishing Alarm updates (TagWithAlarms) to the clients")
-public class AlarmPublisherTagWithAlarms implements SmartLifecycle, AlarmAggregatorListener, Publisher<TagWithAlarms> {
+public class AlarmPublisher implements SmartLifecycle, AlarmAggregatorListener, Publisher<TagWithAlarms> {
 
   /** Bean providing for sending JMS messages and waiting for a response */
   private final JmsSender jmsSender;
@@ -82,7 +82,7 @@ public class AlarmPublisherTagWithAlarms implements SmartLifecycle, AlarmAggrega
    * @param properties The configured {@link ClientProperties}. Required to determine the JMS alarm topic.
    */
   @Autowired
-  public AlarmPublisherTagWithAlarms(@Qualifier("alarmTopicPublisher") final JmsSender jmsSender, 
+  public AlarmPublisher(@Qualifier("alarmTopicPublisher") final JmsSender jmsSender, 
       final AlarmAggregator alarmAggregator,
       final ClientProperties properties) {
 
@@ -151,17 +151,26 @@ public class AlarmPublisherTagWithAlarms implements SmartLifecycle, AlarmAggrega
   public int getSizeUnpublishedList() {
     return republisher.getSizeUnpublishedList();
   }
+  
+  @Override
+  public void notifyOnSupervisionChange(Tag tag, List<Alarm> alarms) {
+    if (alarms != null && !alarms.isEmpty()) {
+      publish(new TagWithAlarmsImpl(tag, alarms));
+    }
+  }
 
   /**
    * Send update for all alarms that changed
    */
   @Override
   public void notifyOnUpdate(Tag tag, List<Alarm> alarms) {
-    List<Alarm> changedAlarms = alarms.stream()
-        .filter(a -> a.getSourceTimestamp().equals(tag.getTimestamp())).collect(Collectors.toList());
-    
-    if (!changedAlarms.isEmpty()) {
-      publish(new TagWithAlarmsImpl(tag, changedAlarms));
+    if (alarms != null) {
+      List<Alarm> changedAlarms = alarms.stream()
+          .filter(a -> a.getSourceTimestamp().equals(tag.getTimestamp())).collect(Collectors.toList());
+      
+      if (!changedAlarms.isEmpty()) {
+        publish(new TagWithAlarmsImpl(tag, changedAlarms));
+      }
     }
   }
   
