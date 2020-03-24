@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright (C) 2010-2016 CERN. All rights not expressly granted are reserved.
+ * Copyright (C) 2010-2020 CERN. All rights not expressly granted are reserved.
  *
  * This file is part of the CERN Control and Monitoring Platform 'C2MON'.
  * C2MON is free software: you can redistribute it and/or modify it under the
@@ -16,10 +16,11 @@
  *****************************************************************************/
 package cern.c2mon.server.client.publish;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 import javax.annotation.PostConstruct;
 
-import com.google.gson.Gson;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.SmartLifecycle;
@@ -28,74 +29,68 @@ import org.springframework.jmx.export.annotation.ManagedOperation;
 import org.springframework.jmx.export.annotation.ManagedResource;
 import org.springframework.stereotype.Service;
 
-import cern.c2mon.server.cache.C2monCacheListener;
-import cern.c2mon.server.cache.CacheRegistrationService;
-import cern.c2mon.server.cache.TagLocationService;
+import lombok.extern.slf4j.Slf4j;
+
+import cern.c2mon.server.cache.alarm.AlarmAggregator;
+import cern.c2mon.server.cache.alarm.AlarmAggregatorListener;
+import cern.c2mon.server.client.config.ClientProperties;
 import cern.c2mon.server.client.util.TransferObjectFactory;
 import cern.c2mon.server.common.alarm.Alarm;
-import cern.c2mon.server.common.component.Lifecycle;
+import cern.c2mon.server.common.alarm.TagWithAlarms;
+import cern.c2mon.server.common.alarm.TagWithAlarmsImpl;
 import cern.c2mon.server.common.config.ServerConstants;
 import cern.c2mon.server.common.republisher.Publisher;
 import cern.c2mon.server.common.republisher.Republisher;
 import cern.c2mon.server.common.republisher.RepublisherFactory;
 import cern.c2mon.server.common.tag.Tag;
-import cern.c2mon.shared.client.alarm.AlarmValue;
+import cern.c2mon.shared.client.serializer.TransferTagSerializer;
+import cern.c2mon.shared.client.tag.TransferTagValueImpl;
 import cern.c2mon.shared.util.jms.JmsSender;
-import cern.c2mon.shared.util.json.GsonFactory;
 
 /**
- * Publishes active alarms to the C2MON client applications on the
- * alarm publication topic, specified using the property
- * jms.client.alarm.topic
+ * Publishes active alarms and the corresponding tag value to the C2MON client applications on the
+ * alarm publication topic.
  *
  * <p>Will attempt re-publication of alarms if JMS connection fails.
  *
- *
- * @author Manos, Mark Brightwell
- *
+ * @author Matthias Braeger
  */
 @Slf4j
 @Service
-@ManagedResource(description = "Bean publishing Alarm updates to the clients")
-public class AlarmPublisher implements C2monCacheListener<Alarm>, SmartLifecycle, Publisher<AlarmValue>  {
+@ManagedResource(description = "Bean publishing Alarm updates (TagWithAlarms) to the clients")
+public class AlarmPublisherTagWithAlarms implements SmartLifecycle, AlarmAggregatorListener, Publisher<TagWithAlarms> {
 
   /** Bean providing for sending JMS messages and waiting for a response */
   private final JmsSender jmsSender;
-
-  /** Used to register to Alarm updates */
-  private CacheRegistrationService cacheRegistrationService;
-
-  /** Reference to the tag location service to check whether a tag exists */
-  private final TagLocationService tagLocationService;
-
-  /** Json message serializer/deserializer */
-  private static final Gson GSON = GsonFactory.createGson();
-
-  /** Listener container lifecycle hook */
-  private Lifecycle listenerContainer;
+  
+  /** The configured JMS alarm topic, extracted from {@link ClientProperties} */
+  private final String tagWithAlarmsTopic;
+  
+  /** Listens for Tag updates, evaluates all associated alarms and passes the result */
+  private final AlarmAggregator alarmAggregator;
 
   /** Contains re-publication logic */
-  private Republisher<AlarmValue> republisher;
+  private final Republisher<TagWithAlarms> republisher;
 
   /** Lifecycle flag */
-  private volatile boolean running = false;
+  private boolean running;
 
   /**
    * Default Constructor
-   * @param pJmsSender Used for sending JMS messages and waiting for a response.
-   * @param pCacheRegistrationService Used to register to Alarm updates.
-   * @param pTagLocationService Reference to the tag location service singleton.
-   * Used to add tag information to the AlarmValue object.
+   * @param jmsSender Used for sending JMS messages and waiting for a response.
+   * @param alarmAggregator Required to receive notifications when a tag has changed.
+   * @param properties The configured {@link ClientProperties}. Required to determine the JMS alarm topic.
    */
   @Autowired
-  public AlarmPublisher(@Qualifier("alarmTopicPublisher") final JmsSender pJmsSender
-      , final CacheRegistrationService pCacheRegistrationService
-      , final TagLocationService pTagLocationService) {
+  public AlarmPublisherTagWithAlarms(@Qualifier("alarmTopicPublisher") final JmsSender jmsSender, 
+      final AlarmAggregator alarmAggregator,
+      final ClientProperties properties) {
 
-    jmsSender = pJmsSender;
-    cacheRegistrationService = pCacheRegistrationService;
-    tagLocationService = pTagLocationService;
-    republisher = RepublisherFactory.createRepublisher(this, "Alarm");
+    this.jmsSender = jmsSender;
+    this.alarmAggregator = alarmAggregator;
+    this.tagWithAlarmsTopic = properties.getJms().getTagWithAlarmsTopic();
+    
+    republisher = RepublisherFactory.createRepublisher(this, "TagWithAlarms");
   }
 
   /**
@@ -103,40 +98,7 @@ public class AlarmPublisher implements C2monCacheListener<Alarm>, SmartLifecycle
    */
   @PostConstruct
   void init() {
-    listenerContainer = cacheRegistrationService.registerToAlarms(this);
-  }
-
-  @Override
-  public void confirmStatus(final Alarm alarm) {
-    notifyElementUpdated(alarm);
-  }
-
-  /**
-   * Generates for every alarm update an <code>AlarmValue</code>
-   * object which is then sent as serialized GSON message trough the
-   * JMS client topic.
-   * @param alarm the updated alarm
-   */
-  @Override
-  public void notifyElementUpdated(final Alarm alarm) {
-
-    Long tagId = alarm.getTagId();
-    AlarmValue alarmValue = null;
-
-    if (tagLocationService.isInTagCache(tagId)) {
-      Tag tag = tagLocationService.getCopy(tagId);
-      alarmValue = (TransferObjectFactory.createAlarmValue(alarm, tag));
-    }
-    else {
-      log.warn("notifyElementUpdated() - unrecognized Tag with id " + tagId);
-      alarmValue = (TransferObjectFactory.createAlarmValue(alarm));
-    }
-    try {
-      publish(alarmValue);
-    } catch (JmsException e) {
-      log.error("Error publishing alarm to clients - submitting for republication. Alarm id is " + alarmValue.getId(), e);
-      republisher.publicationFailed(alarmValue);
-    }
+    this.alarmAggregator.registerForTagUpdates(this);
   }
 
   @Override
@@ -157,16 +119,14 @@ public class AlarmPublisher implements C2monCacheListener<Alarm>, SmartLifecycle
 
   @Override
   public void start() {
-    log.debug("Starting Alarm publisher");
+    log.debug("Starting Alarm publisher for TagWithAlarms");
     running = true;
     republisher.start();
-    listenerContainer.start();
   }
 
   @Override
   public void stop() {
-    log.debug("Stopping Alarm publisher");
-    listenerContainer.stop();
+    log.debug("Stopping Alarm publisher for TagWithAlarms");
     republisher.stop();
     running = false;
   }
@@ -174,13 +134,6 @@ public class AlarmPublisher implements C2monCacheListener<Alarm>, SmartLifecycle
   @Override
   public int getPhase() {
     return ServerConstants.PHASE_STOP_LAST - 1;
-  }
-
-  @Override
-  public void publish(final AlarmValue alarmValue) {
-    String jsonAlarm = GSON.toJson(alarmValue);
-    log.debug("Publishing alarm: " + jsonAlarm);
-    jmsSender.send(jsonAlarm);
   }
 
   /**
@@ -197,5 +150,35 @@ public class AlarmPublisher implements C2monCacheListener<Alarm>, SmartLifecycle
   @ManagedOperation(description = "Returns the current number of alarms awaiting re-publication (should be 0 in normal operation)")
   public int getSizeUnpublishedList() {
     return republisher.getSizeUnpublishedList();
+  }
+
+  /**
+   * Send update for all alarms that changed
+   */
+  @Override
+  public void notifyOnUpdate(Tag tag, List<Alarm> alarms) {
+    List<Alarm> changedAlarms = alarms.stream()
+        .filter(a -> a.getSourceTimestamp().equals(tag.getTimestamp())).collect(Collectors.toList());
+    
+    if (!changedAlarms.isEmpty()) {
+      publish(new TagWithAlarmsImpl(tag, changedAlarms));
+    }
+  }
+  
+  @Override
+  public void publish(final TagWithAlarms tagWithAlarms) {
+    TransferTagValueImpl tagValue = TransferObjectFactory.createTransferTagValue(tagWithAlarms);
+    
+    if (log.isTraceEnabled()) {
+      log.trace("Publishing alarm(s) with full tag object for tag id #{} to topic {}", tagWithAlarms.getTag().getId(), tagWithAlarmsTopic);
+    }
+
+    try {
+      jmsSender.sendToTopic(TransferTagSerializer.toJson(tagValue), tagWithAlarmsTopic);
+    } catch (JmsException e) {
+      log.error("Error publishing alarm(s) with full tag object to clients - submitting for republication for tag #{} + alarms", tagWithAlarms.getTag().getId(), e);
+      republisher.publicationFailed(tagWithAlarms);
+    }
+    
   }
 }
