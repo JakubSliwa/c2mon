@@ -62,7 +62,7 @@ public class SimpleAlarmPublisher implements C2monCacheListener<Alarm>, SmartLif
   private final JmsSender jmsSender;
 
   /** Used to register to Alarm updates */
-  private CacheRegistrationService cacheRegistrationService;
+  private final CacheRegistrationService cacheRegistrationService;
 
   /** Reference to the tag location service to check whether a tag exists */
   private final TagLocationService tagLocationService;
@@ -74,7 +74,7 @@ public class SimpleAlarmPublisher implements C2monCacheListener<Alarm>, SmartLif
   private Lifecycle listenerContainer;
 
   /** Contains re-publication logic */
-  private Republisher<AlarmValue> republisher;
+  private final Republisher<AlarmValue> republisher;
 
   /** Lifecycle flag */
   private boolean running;
@@ -87,9 +87,9 @@ public class SimpleAlarmPublisher implements C2monCacheListener<Alarm>, SmartLif
    * Used to add tag information to the AlarmValue object.
    */
   @Autowired
-  public SimpleAlarmPublisher(@Qualifier("alarmTopicPublisher") final JmsSender pJmsSender
-      , final CacheRegistrationService pCacheRegistrationService
-      , final TagLocationService pTagLocationService) {
+  public SimpleAlarmPublisher(@Qualifier("alarmTopicPublisher") final JmsSender pJmsSender,
+      final CacheRegistrationService pCacheRegistrationService,
+      final TagLocationService pTagLocationService) {
 
     jmsSender = pJmsSender;
     cacheRegistrationService = pCacheRegistrationService;
