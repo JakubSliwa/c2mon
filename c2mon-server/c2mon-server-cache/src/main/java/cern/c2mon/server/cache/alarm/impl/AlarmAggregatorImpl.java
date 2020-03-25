@@ -24,6 +24,8 @@ import javax.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import lombok.extern.slf4j.Slf4j;
+
 import cern.c2mon.server.cache.C2monCacheListener;
 import cern.c2mon.server.cache.CacheRegistrationService;
 import cern.c2mon.server.cache.CacheSupervisionListener;
@@ -32,7 +34,6 @@ import cern.c2mon.server.cache.alarm.AlarmAggregator;
 import cern.c2mon.server.cache.alarm.AlarmAggregatorListener;
 import cern.c2mon.server.common.alarm.Alarm;
 import cern.c2mon.server.common.tag.Tag;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * Implementation of the {@link AlarmAggregator} (a singleton bean in the server
@@ -129,7 +130,7 @@ public class AlarmAggregatorImpl implements AlarmAggregator, C2monCacheListener<
    * @param alarmList
    *          the associated list of evaluated alarms
    */
-  private void notifyListeners(final Tag tag, final List<Alarm> alarmList) {
+  public void notifyListeners(final Tag tag, final List<Alarm> alarmList) {
     for (AlarmAggregatorListener listener : listeners) {
       try {
         listener.notifyOnUpdate((Tag) tag.clone(), alarmList);

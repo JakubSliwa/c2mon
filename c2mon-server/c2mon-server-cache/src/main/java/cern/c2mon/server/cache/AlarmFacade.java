@@ -16,8 +16,10 @@
  *****************************************************************************/
 package cern.c2mon.server.cache;
 
+import cern.c2mon.server.cache.alarm.AlarmAggregatorListener;
 import cern.c2mon.server.cache.common.ConfigurableCacheFacade;
 import cern.c2mon.server.common.alarm.Alarm;
+import cern.c2mon.server.common.alarm.AlarmCacheObject;
 import cern.c2mon.server.common.tag.Tag;
 
 /**
@@ -86,4 +88,9 @@ public interface AlarmFacade extends ConfigurableCacheFacade<Alarm> {
    */
   void evaluateAlarm(Long alarmId);
 
+  /**
+   * Notifies {@link AlarmCache} listeners and {@link AlarmAggregatorListener} about the removal
+   * @param removedAlarm A copy of the alarm that got removed
+   */
+  void notifyOnAlarmRemoval(AlarmCacheObject removedAlarm);
 }

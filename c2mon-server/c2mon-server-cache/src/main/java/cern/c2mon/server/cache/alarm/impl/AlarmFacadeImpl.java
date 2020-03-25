@@ -17,6 +17,8 @@
 package cern.c2mon.server.cache.alarm.impl;
 
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,12 +26,13 @@ import org.springframework.stereotype.Service;
 
 import cern.c2mon.server.cache.AlarmCache;
 import cern.c2mon.server.cache.AlarmFacade;
-import cern.c2mon.server.cache.TagLocationService;
+import cern.c2mon.server.cache.TagFacadeGateway;
 import cern.c2mon.server.cache.common.AbstractFacade;
 import cern.c2mon.server.cache.util.MetadataUtils;
 import cern.c2mon.server.common.alarm.Alarm;
 import cern.c2mon.server.common.alarm.AlarmCacheObject;
 import cern.c2mon.server.common.alarm.AlarmCacheUpdater;
+import cern.c2mon.server.common.alarm.TagWithAlarms;
 import cern.c2mon.server.common.tag.Tag;
 import cern.c2mon.shared.client.alarm.condition.AlarmCondition;
 import cern.c2mon.shared.common.ConfigurationException;
@@ -69,23 +72,22 @@ public class AlarmFacadeImpl extends AbstractFacade<Alarm> implements AlarmFacad
    */
   private int maxFaultMemberLength = MAX_FAULT_MEMBER_LENGTH;
 
-  private final TagLocationService tagLocationService;
+  private final TagFacadeGateway tagFacadeGateway;
 
   private final AlarmCacheUpdater alarmCacheUpdater;
+  
+  private final AlarmAggregatorImpl alarmAggregator;
 
-
-  /**
-   * Autowired constructor.
-   *
-   * @param alarmCache
-   *          the alarm cache
-   */
   @Autowired
-  public AlarmFacadeImpl(final AlarmCache alarmCache, final TagLocationService tagLocationService, AlarmCacheUpdater alarmCacheUpdater) {
+  public AlarmFacadeImpl(final AlarmCache alarmCache, 
+                         final TagFacadeGateway tagLocationService, 
+                         final AlarmCacheUpdater alarmCacheUpdater,
+                         final AlarmAggregatorImpl alarmAggregatorImpl) {
     super();
     this.alarmCache = alarmCache;
-    this.tagLocationService = tagLocationService;
+    this.tagFacadeGateway = tagLocationService;
     this.alarmCacheUpdater = alarmCacheUpdater;
+    this.alarmAggregator = alarmAggregatorImpl;
   }
 
   /**
@@ -255,17 +257,35 @@ public class AlarmFacadeImpl extends AbstractFacade<Alarm> implements AlarmFacad
       alarmCache.releaseWriteLockOnKey(alarmId);
     }
   }
+  
+  @Override
+  public void notifyOnAlarmRemoval(AlarmCacheObject removedAlarm) {
+    removedAlarm.setActive(false);
+    removedAlarm.setInfo("Alarm was removed");
+    removedAlarm.setTimestamp(new Timestamp(System.currentTimeMillis()));
+
+    alarmCache.notifyListenersOfUpdate(removedAlarm);
+    
+    TagWithAlarms tagWithAlarms = tagFacadeGateway.getTagWithAlarms(removedAlarm.getDataTagId());
+    List<Alarm> alarmList = new ArrayList<Alarm>(tagWithAlarms.getAlarms());
+    alarmList.add(removedAlarm);
+    alarmAggregator.notifyListeners(tagWithAlarms.getTag(), alarmList);
+  }
 
   @Override
   public void evaluateAlarm(Long alarmId) {
     alarmCache.acquireWriteLockOnKey(alarmId);
+    Tag tagCopy;
     try {
       Alarm alarm = alarmCache.getCopy(alarmId);
-      Tag tag = tagLocationService.getCopy(alarm.getTagId());
-      alarmCacheUpdater.update(alarm, tag);
+      tagCopy = tagFacadeGateway.getCopy(alarm.getTagId());
+      
+      alarmCacheUpdater.update(alarm, tagCopy);
     } finally {
       alarmCache.releaseWriteLockOnKey(alarmId);
     }
+    
+    alarmAggregator.notifyListeners(tagCopy, tagFacadeGateway.getAlarms(tagCopy));
   }
 
   /**

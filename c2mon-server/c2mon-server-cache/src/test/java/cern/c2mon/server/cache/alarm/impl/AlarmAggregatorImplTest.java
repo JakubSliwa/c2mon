@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright (C) 2010-2016 CERN. All rights not expressly granted are reserved.
+ * Copyright (C) 2010-2020 CERN. All rights not expressly granted are reserved.
  * 
  * This file is part of the CERN Control and Monitoring Platform 'C2MON'.
  * C2MON is free software: you can redistribute it and/or modify it under the
@@ -104,9 +104,14 @@ public class AlarmAggregatorImplTest {
     List<Alarm> alarmList = new ArrayList<Alarm>();
     alarmList.add(new AlarmCacheObject(10L));
     alarmList.add(new AlarmCacheObject(20L));    
+
     expect(tagFacadeGateway.evaluateAlarms(tag)).andReturn(alarmList);
     listener1.notifyOnUpdate(tag, alarmList);
     listener2.notifyOnUpdate(tag, alarmList);
+
+    expect(tagFacadeGateway.evaluateAlarms(tag)).andReturn(alarmList);
+    listener1.notifyOnSupervisionChange(tag, alarmList);
+    listener2.notifyOnSupervisionChange(tag, alarmList);
 
     replay(tagLocationService);
     replay(tagFacadeGateway);
@@ -114,6 +119,7 @@ public class AlarmAggregatorImplTest {
     replay(listener2);
 
     alarmAggregator.notifyElementUpdated(tag);
+    alarmAggregator.onSupervisionChange(tag);
     
     verify(tagLocationService);
     verify(tagFacadeGateway);
