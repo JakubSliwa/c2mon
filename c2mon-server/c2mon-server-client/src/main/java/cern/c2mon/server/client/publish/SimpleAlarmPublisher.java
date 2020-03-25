@@ -77,7 +77,7 @@ public class SimpleAlarmPublisher implements C2monCacheListener<Alarm>, SmartLif
   private Republisher<AlarmValue> republisher;
 
   /** Lifecycle flag */
-  private volatile boolean running = false;
+  private boolean running;
 
   /**
    * Default Constructor
