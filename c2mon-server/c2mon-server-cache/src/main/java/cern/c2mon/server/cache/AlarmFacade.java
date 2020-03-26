@@ -44,14 +44,6 @@ import cern.c2mon.server.common.tag.Tag;
 public interface AlarmFacade extends ConfigurableCacheFacade<Alarm> {
 
   /**
-   * Returns the name of the JMS topic on which the Alarms
-   * must be published.
-   * @param alarm for which the topic is required
-   * @return the topic name
-   */
-  String getTopicForAlarm(Alarm alarm);
-  
-  /**
    * Updates the Alarm in the cache using the passed Tag value.
    * Listeners will only be notified of an update if the Alarm state
    * or the Alarm info changes.
