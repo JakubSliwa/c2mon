@@ -31,7 +31,7 @@ package cern.c2mon.server.cache.alarm;
  * @author Mark Brightwell
  *
  */
-public interface AlarmAggregator {
+public interface AlarmAggregatorRegistration {
 
   /**
    * Register this listener to received alarm & tag update notifications.

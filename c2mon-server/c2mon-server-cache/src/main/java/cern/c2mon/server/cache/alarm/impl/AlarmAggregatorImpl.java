@@ -16,7 +16,6 @@
  *****************************************************************************/
 package cern.c2mon.server.cache.alarm.impl;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import javax.annotation.PostConstruct;
@@ -30,13 +29,12 @@ import cern.c2mon.server.cache.C2monCacheListener;
 import cern.c2mon.server.cache.CacheRegistrationService;
 import cern.c2mon.server.cache.CacheSupervisionListener;
 import cern.c2mon.server.cache.TagFacadeGateway;
-import cern.c2mon.server.cache.alarm.AlarmAggregator;
-import cern.c2mon.server.cache.alarm.AlarmAggregatorListener;
+import cern.c2mon.server.cache.alarm.AlarmAggregatorRegistration;
 import cern.c2mon.server.common.alarm.Alarm;
 import cern.c2mon.server.common.tag.Tag;
 
 /**
- * Implementation of the {@link AlarmAggregator} (a singleton bean in the server
+ * Implementation of the {@link AlarmAggregatorRegistration} (a singleton bean in the server
  * context).
  * 
  * <p>
@@ -49,22 +47,18 @@ import cern.c2mon.server.common.tag.Tag;
  */
 @Slf4j
 @Service
-public class AlarmAggregatorImpl implements AlarmAggregator, C2monCacheListener<Tag>, CacheSupervisionListener<Tag> {
-
-  /**
-   * List of registered listeners.
-   */
-  private List<AlarmAggregatorListener> listeners;
+public class AlarmAggregatorImpl implements C2monCacheListener<Tag>, CacheSupervisionListener<Tag> {
 
   /**
    * Used to register the aggregator as Tag update listener.
    */
-  private CacheRegistrationService cacheRegistrationService;
+  private final CacheRegistrationService cacheRegistrationService;
 
-  /**
-   * The gateway to all Tag facades.
-   */
-  private TagFacadeGateway tagFacadeGateway;
+  /** The gateway to all Tag facades */
+  private final TagFacadeGateway tagFacadeGateway;
+  
+  /** Required to notify listeners on tag and alarm updates */
+  private final AlarmAggregatorNotifier notifier;
 
   /**
    * Autowired constructor.
@@ -76,13 +70,14 @@ public class AlarmAggregatorImpl implements AlarmAggregator, C2monCacheListener<
    *          the Tag Facade gateway (for access to all Tag Facade beans)
    * @param tagLocationService
    *          the Tag location service
+   * @param notifier Required to notify listeners on tag and alarm updates
    */
   @Autowired
-  public AlarmAggregatorImpl(final CacheRegistrationService cacheRegistrationService, final TagFacadeGateway tagFacadeGateway) {
+  public AlarmAggregatorImpl(final CacheRegistrationService cacheRegistrationService, final TagFacadeGateway tagFacadeGateway, final AlarmAggregatorNotifier notifier) {
     super();
     this.cacheRegistrationService = cacheRegistrationService;
     this.tagFacadeGateway = tagFacadeGateway;
-    listeners = new ArrayList<>();
+    this.notifier = notifier;
   }
 
   /**
@@ -97,11 +92,6 @@ public class AlarmAggregatorImpl implements AlarmAggregator, C2monCacheListener<
     // one at this stage
     cacheRegistrationService.registerSynchronousToAllTags(this);
     cacheRegistrationService.registerForSupervisionChanges(this);
-  }
-
-  @Override
-  public void registerForTagUpdates(final AlarmAggregatorListener aggregatorListener) {
-    listeners.add(aggregatorListener);
   }
 
   /**
@@ -119,40 +109,16 @@ public class AlarmAggregatorImpl implements AlarmAggregator, C2monCacheListener<
   @Override
   public void notifyElementUpdated(final Tag tag) {
     List<Alarm> alarmList = evaluateAlarms(tag);
-    notifyListeners(tag, alarmList);
-  }
-
-  /**
-   * Notify the listeners of a tag update with associated alarms.
-   * 
-   * @param tag
-   *          the Tag that has been updated
-   * @param alarmList
-   *          the associated list of evaluated alarms
-   */
-  public void notifyListeners(final Tag tag, final List<Alarm> alarmList) {
-    for (AlarmAggregatorListener listener : listeners) {
-      try {
-        listener.notifyOnUpdate((Tag) tag.clone(), alarmList);
-      } catch (CloneNotSupportedException e) {
-        log.error("Unexpected exception caught: clone should be implemented for this class! Alarm & tag listener was not notified: {}", listener.getClass().getSimpleName(), e);
-      }
-    }
+    notifier.notifyOnUpdate(tag, alarmList);
   }
 
   @Override
   public void onSupervisionChange(final Tag tag) {
-    log.trace("Evaluating alarm for tag " + tag.getId() + " due to supervision status notification.");
-
-    List<Alarm> alarms = evaluateAlarms(tag);
-    
-    for (AlarmAggregatorListener listener : listeners) {
-      try {
-        listener.notifyOnSupervisionChange((Tag) tag.clone(), alarms);
-      } catch (CloneNotSupportedException e) {
-        log.error("Unexpected exception caught: clone should be implemented for this class! Alarm & tag listener was not notified: {}", listener.getClass().getSimpleName(), e);
-      }
+    if (log.isTraceEnabled()) {
+      log.trace("Evaluating alarm for tag #{} due to supervision status notification", tag.getId());
     }
+    List<Alarm> alarms = evaluateAlarms(tag);
+    notifier.notifyOnSupervisionChange(tag, alarms);
   }
 
   private List<Alarm> evaluateAlarms(final Tag tag) {

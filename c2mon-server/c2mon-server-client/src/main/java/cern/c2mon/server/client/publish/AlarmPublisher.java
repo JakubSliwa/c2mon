@@ -31,7 +31,7 @@ import org.springframework.stereotype.Service;
 
 import lombok.extern.slf4j.Slf4j;
 
-import cern.c2mon.server.cache.alarm.AlarmAggregator;
+import cern.c2mon.server.cache.alarm.AlarmAggregatorRegistration;
 import cern.c2mon.server.cache.alarm.AlarmAggregatorListener;
 import cern.c2mon.server.client.config.ClientProperties;
 import cern.c2mon.server.client.util.TransferObjectFactory;
@@ -67,7 +67,7 @@ public class AlarmPublisher implements SmartLifecycle, AlarmAggregatorListener, 
   private final String tagWithAlarmsTopic;
   
   /** Listens for Tag updates, evaluates all associated alarms and passes the result */
-  private final AlarmAggregator alarmAggregator;
+  private final AlarmAggregatorRegistration alarmAggregatorRegistration;
 
   /** Contains re-publication logic */
   private final Republisher<TagWithAlarms> republisher;
@@ -78,16 +78,16 @@ public class AlarmPublisher implements SmartLifecycle, AlarmAggregatorListener, 
   /**
    * Default Constructor
    * @param jmsSender Used for sending JMS messages and waiting for a response.
-   * @param alarmAggregator Required to receive notifications when a tag has changed.
+   * @param alarmAggregatorRegistration Required to receive notifications when a tag has changed.
    * @param properties The configured {@link ClientProperties}. Required to determine the JMS alarm topic.
    */
   @Autowired
   public AlarmPublisher(@Qualifier("alarmTopicPublisher") final JmsSender jmsSender, 
-      final AlarmAggregator alarmAggregator,
+      final AlarmAggregatorRegistration alarmAggregatorRegistration,
       final ClientProperties properties) {
 
     this.jmsSender = jmsSender;
-    this.alarmAggregator = alarmAggregator;
+    this.alarmAggregatorRegistration = alarmAggregatorRegistration;
     this.tagWithAlarmsTopic = properties.getJms().getTagWithAlarmsTopic();
     
     republisher = RepublisherFactory.createRepublisher(this, "TagWithAlarms");
@@ -98,7 +98,7 @@ public class AlarmPublisher implements SmartLifecycle, AlarmAggregatorListener, 
    */
   @PostConstruct
   void init() {
-    this.alarmAggregator.registerForTagUpdates(this);
+    this.alarmAggregatorRegistration.registerForTagUpdates(this);
   }
 
   @Override
@@ -152,10 +152,17 @@ public class AlarmPublisher implements SmartLifecycle, AlarmAggregatorListener, 
     return republisher.getSizeUnpublishedList();
   }
   
+  /**
+   * Only publish, if it contains an active alarm. This is important to not flood 
+   * the client with irrelevant alarm information. Depending on the setup there can be thousands 
+   * of tags with alarms that will be invalidated at the same time. 
+   */
   @Override
   public void notifyOnSupervisionChange(Tag tag, List<Alarm> alarms) {
     if (alarms != null && !alarms.isEmpty()) {
-      publish(new TagWithAlarmsImpl(tag, alarms));
+      if (alarms.stream().anyMatch(a -> a.isActive())) {
+        publish(new TagWithAlarmsImpl(tag, alarms));
+      }
     }
   }
 
