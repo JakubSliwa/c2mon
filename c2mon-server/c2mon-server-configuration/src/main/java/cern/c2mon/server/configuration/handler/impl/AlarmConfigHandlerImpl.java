@@ -43,18 +43,17 @@ import cern.c2mon.shared.client.configuration.ConfigurationElementReport;
 @Service
 public class AlarmConfigHandlerImpl implements AlarmConfigHandler {
 
-  private final AlarmConfigTransacted alarmConfigTransacted;
+  @Autowired
+  private AlarmConfigTransacted alarmConfigTransacted;
 
   private final AlarmCache alarmCache;
 
   private final AlarmFacade alarmFacade;
 
   @Autowired
-  public AlarmConfigHandlerImpl(AlarmConfigTransacted alarmConfigTransacted,
-                                AlarmCache alarmCache,
+  public AlarmConfigHandlerImpl(AlarmCache alarmCache,
                                 AlarmFacade alarmFacade) {
     super();
-    this.alarmConfigTransacted = alarmConfigTransacted;
     this.alarmCache = alarmCache;
     this.alarmFacade = alarmFacade;
   }
