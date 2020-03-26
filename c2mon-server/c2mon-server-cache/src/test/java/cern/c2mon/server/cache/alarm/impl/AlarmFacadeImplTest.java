@@ -28,6 +28,7 @@ import org.junit.Test;
 
 import cern.c2mon.server.cache.AlarmCache;
 import cern.c2mon.server.cache.TagFacadeGateway;
+import cern.c2mon.server.cache.TagLocationService;
 import cern.c2mon.server.cache.alarm.config.OscillationProperties;
 import cern.c2mon.server.cache.alarm.oscillation.OscillationUpdater;
 import cern.c2mon.server.common.alarm.AlarmCacheObject;
@@ -49,20 +50,20 @@ public class AlarmFacadeImplTest {
 
   private AlarmCache alarmCache;
 
-  private TagFacadeGateway tagFacadeGateway;
+  private TagLocationService tagLocationService;
 
   private AlarmCacheUpdaterImpl alarmCacheUpdater;
   
-  private AlarmAggregatorImpl alarmaggr;
+  private AlarmAggregatorNotifier notifier;
 
   @Before
   public void setup() {
     alarmCache = EasyMock.createNiceMock(AlarmCache.class);
-    tagFacadeGateway = EasyMock.createStrictMock(TagFacadeGateway.class);
+    tagLocationService = EasyMock.createStrictMock(TagLocationService.class);
     OscillationUpdater oscillationUpdater = new OscillationUpdater(alarmCache, new OscillationProperties());
     alarmCacheUpdater = new AlarmCacheUpdaterImpl(alarmCache, oscillationUpdater);
-    alarmaggr = EasyMock.createNiceMock(AlarmAggregatorImpl.class);
-    alarmFacadeImpl = new AlarmFacadeImpl(alarmCache, tagFacadeGateway, alarmCacheUpdater, alarmaggr);
+    notifier = EasyMock.createNiceMock(AlarmAggregatorNotifier.class);
+    alarmFacadeImpl = new AlarmFacadeImpl(alarmCache, tagLocationService, alarmCacheUpdater, notifier);
   }
 
   /**
@@ -88,10 +89,10 @@ public class AlarmFacadeImplTest {
     EasyMock.expect(alarmCache.getCopy(currentAlarmState.getId())).andReturn(currentAlarmState);
     // TODO : Expect a put as well (or leave it as a "nice" mock)
     alarmCache.releaseWriteLockOnKey(currentAlarmState.getId());
-    EasyMock.replay(alarmCache, tagFacadeGateway);
+    EasyMock.replay(alarmCache, tagLocationService);
     //(1)test update works
     alarmFacadeImpl.update(currentAlarmState.getId(), tag);
-    EasyMock.verify(alarmCache, tagFacadeGateway);
+    EasyMock.verify(alarmCache, tagLocationService);
 
     assertEquals(false, currentAlarmState.isActive());
     assertEquals(false, currentAlarmState.isActive()); //also update alarm parameter object (usually in cache)
@@ -121,11 +122,11 @@ public class AlarmFacadeImplTest {
     EasyMock.expect(alarmCache.getCopy(currentAlarmState.getId())).andReturn(currentAlarmState);
     alarmCache.put(currentAlarmState.getId(), currentAlarmState);
     alarmCache.releaseWriteLockOnKey(currentAlarmState.getId());
-    EasyMock.replay(alarmCache, tagFacadeGateway);
+    EasyMock.replay(alarmCache, tagLocationService);
 
     //(1) test update works
     AlarmCacheObject newAlarm = (AlarmCacheObject) alarmFacadeImpl.update(currentAlarmState.getId(), tag);
-    EasyMock.verify(alarmCache, tagFacadeGateway);
+    EasyMock.verify(alarmCache, tagLocationService);
 
     assertEquals(false, newAlarm.isActive());
     assertTrue(newAlarm.getSourceTimestamp().equals(tag.getTimestamp()));
@@ -155,12 +156,12 @@ public class AlarmFacadeImplTest {
     // record expected notification call with EasyMock
     alarmCache.put(alarm.getId(), alarm);
     alarmCache.releaseWriteLockOnKey(alarm.getId());
-    EasyMock.replay(alarmCache, tagFacadeGateway);
+    EasyMock.replay(alarmCache, tagLocationService);
 
     //(1)test update works
     AlarmCacheObject newAlarm = (AlarmCacheObject) alarmFacadeImpl.update(alarm.getId(), tag);
 
-    EasyMock.verify(alarmCache, tagFacadeGateway);
+    EasyMock.verify(alarmCache, tagLocationService);
 
     assertEquals(true, newAlarm.isActive());
     assertTrue(newAlarm.getTimestamp().after(origTime));
@@ -174,15 +175,15 @@ public class AlarmFacadeImplTest {
     assertEquals(false, alarm2.isActive()); //check is in correct start state
     tag.setValue("UP"); //alarm should be terminate
 
-    EasyMock.reset(alarmCache, tagFacadeGateway);
+    EasyMock.reset(alarmCache, tagLocationService);
     alarmCache.acquireWriteLockOnKey(alarm2.getId());
     EasyMock.expect(alarmCache.getCopy(alarm2.getId())).andReturn(alarm2);
     alarmCache.releaseWriteLockOnKey(alarm2.getId());
-    EasyMock.replay(alarmCache, tagFacadeGateway);
+    EasyMock.replay(alarmCache, tagLocationService);
 
     AlarmCacheObject newAlarm2 = (AlarmCacheObject) alarmFacadeImpl.update(alarm2.getId(), tag);
 
-    EasyMock.verify(alarmCache, tagFacadeGateway);
+    EasyMock.verify(alarmCache, tagLocationService);
 
     assertEquals(false, newAlarm2.isActive()); //original TERMINATE!
     assertEquals(newAlarm2.getTimestamp(), origTime);
