@@ -210,7 +210,6 @@ public interface JmsProxy {
    * Unregister the listener from receiving supervision updates.
    * 
    * @param supervisionListener the listener to remove
-   * @throws NullPointerException if argument is null
    */
   void unregisterSupervisionListener(SupervisionListener supervisionListener);
   
@@ -219,7 +218,7 @@ public interface JmsProxy {
    * from the server.
    * 
    * @param alarmListener the listener to register
-   * @throws JMSException 
+   * @throws JMSException In case of JMS problems 
    */
   void registerAlarmListener(final AlarmListener alarmListener) throws JMSException;
    
@@ -227,7 +226,7 @@ public interface JmsProxy {
    * Unregister the listener from receiving alarm updates.
    * 
    * @param alarmListener the listener to remove
-   * @throws JMSException 
+   * @throws JMSException In case of JMS problems
    */
   void unregisterAlarmListener(final AlarmListener alarmListener) throws JMSException;
   
@@ -245,7 +244,6 @@ public interface JmsProxy {
    * Unregister the listener from receiving BroadcastMessage updates.
    * 
    * @param broadcastMessageListener the listener to remove
-   * @throws NullPointerException if argument is null
    */
   void unregisterBroadcastMessageListener(BroadcastMessageListener broadcastMessageListener);
 
@@ -262,8 +260,7 @@ public interface JmsProxy {
   /**
    * Unregister the listener from receiving heartbeat updates.
    * 
-   * @param supervisionListener the listener to remove
-   * @throws NullPointerException if argument is null
+   * @param heartbeatListener the listener to remove
    */
   void unregisterHeartbeatListener(HeartbeatListener heartbeatListener);
 }
