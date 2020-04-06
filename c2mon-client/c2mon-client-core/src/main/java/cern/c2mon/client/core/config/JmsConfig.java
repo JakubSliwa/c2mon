@@ -16,6 +16,10 @@
  *****************************************************************************/
 package cern.c2mon.client.core.config;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+
 import org.apache.activemq.ActiveMQConnectionFactory;
 import org.apache.activemq.ActiveMQPrefetchPolicy;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,5 +62,24 @@ public class JmsConfig {
   @Bean
   public JmsTemplate clientJmsTemplate() {
     return new JmsTemplate(new CachingConnectionFactory(clientJmsConnectionFactory()));
+  }
+  
+  /**
+   * Threads used for polling topic queues.
+   * @return The topic polling Executor Service
+   */
+  @Bean
+  public ExecutorService topicPollingExecutor() {
+    return Executors.newCachedThreadPool(new ThreadFactory() {
+      
+      ThreadFactory defaultFactory = Executors.defaultThreadFactory();
+      
+      @Override
+      public Thread newThread(final Runnable r) {
+        Thread returnThread = defaultFactory.newThread(r);
+        returnThread.setDaemon(true);
+        return returnThread;
+      }
+    });
   }
 }

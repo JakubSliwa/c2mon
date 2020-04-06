@@ -35,6 +35,11 @@ public class ClientJmsProperties {
    * Name of the topic on which the server is publishing its heartbeat
    */
   private String heartbeatTopic = "c2mon.client.heartbeat";
+  
+  /**
+   * The broadcast topic channel to which the messages shall be sent
+   */
+  private String broadcastTopic = "c2mon.client.broadcastmessage";
 
   /**
    * Name of the topic on which the server is publishing {@link AlarmValue} objects as JSON string

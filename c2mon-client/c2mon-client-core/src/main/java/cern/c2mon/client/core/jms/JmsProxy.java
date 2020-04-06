@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright (C) 2010-2016 CERN. All rights not expressly granted are reserved.
+ * Copyright (C) 2010-2020 CERN. All rights not expressly granted are reserved.
  * 
  * This file is part of the CERN Control and Monitoring Platform 'C2MON'.
  * C2MON is free software: you can redistribute it and/or modify it under the
@@ -35,7 +35,6 @@ package cern.c2mon.client.core.jms;
  *****************************************************************************/
 import java.util.Collection;
 
-import javax.jms.Destination;
 import javax.jms.JMSException;
 
 import cern.c2mon.client.common.listener.ClientRequestReportListener;
@@ -214,15 +213,6 @@ public interface JmsProxy {
    * @throws NullPointerException if argument is null
    */
   void unregisterSupervisionListener(SupervisionListener supervisionListener);
-  
-  /**
-   * Sets the admin message topic on which admin messages will be received.
-   * This method can only be called once!
-   * 
-   * @param adminMessageTopic the adminMessageTopic to set
-   * @throws IllegalStateException if trying to set the admin message topic a second time
-   */
-  void setBroadcastMessageTopic(final Destination adminMessageTopic);
   
   /**
    * Register a listener to be notified of alarm messages received
