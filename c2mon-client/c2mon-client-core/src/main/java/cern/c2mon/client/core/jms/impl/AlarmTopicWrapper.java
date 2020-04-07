@@ -10,10 +10,10 @@ import lombok.extern.slf4j.Slf4j;
 
 import cern.c2mon.client.core.config.C2monClientProperties;
 import cern.c2mon.client.core.jms.AlarmListener;
-import cern.c2mon.shared.client.alarm.AlarmValue;
+import cern.c2mon.shared.client.tag.TagUpdate;
 
 @Slf4j
-public class AlarmTopicWrapper extends AbstractTopicWrapper<AlarmListener, AlarmValue> {
+public class AlarmTopicWrapper extends AbstractTopicWrapper<AlarmListener, TagUpdate> {
   
   /**
    * Alarm Session.
@@ -32,7 +32,7 @@ public class AlarmTopicWrapper extends AbstractTopicWrapper<AlarmListener, Alarm
   }
   
   @Override
-  protected AbstractListenerWrapper<AlarmListener, AlarmValue> createListenerWrapper(SlowConsumerListener slowConsumerListener, final ExecutorService topicPollingExecutor) {
+  protected AbstractListenerWrapper<AlarmListener, TagUpdate> createListenerWrapper(SlowConsumerListener slowConsumerListener, final ExecutorService topicPollingExecutor) {
     return new AlarmListenerWrapper(HIGH_LISTENER_QUEUE_SIZE, slowConsumerListener, topicPollingExecutor);
   }
   

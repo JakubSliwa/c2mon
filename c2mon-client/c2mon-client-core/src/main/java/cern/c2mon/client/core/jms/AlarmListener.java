@@ -1,5 +1,5 @@
 /******************************************************************************
- * Copyright (C) 2010-2016 CERN. All rights not expressly granted are reserved.
+ * Copyright (C) 2010-2020 CERN. All rights not expressly granted are reserved.
  * 
  * This file is part of the CERN Control and Monitoring Platform 'C2MON'.
  * C2MON is free software: you can redistribute it and/or modify it under the
@@ -16,7 +16,7 @@
  *****************************************************************************/
 package cern.c2mon.client.core.jms;
 
-import cern.c2mon.shared.client.alarm.AlarmValue;
+import cern.c2mon.shared.client.tag.TagUpdate;
 
 /**
  * Interface that needs implementing by classes wishing to listen to alarm updates 
@@ -26,9 +26,9 @@ public interface AlarmListener {
   /**
    * Called when an alarm update is received from the topic
    * 
-   * @param alarm the updated alarm
+   * @param tagWithAlarmChange the tag with the updated alarm
    *          
    */
-  void onAlarmUpdate(AlarmValue alarm);
+  void onAlarmUpdate(TagUpdate tagWithAlarmChange);
 
 }
