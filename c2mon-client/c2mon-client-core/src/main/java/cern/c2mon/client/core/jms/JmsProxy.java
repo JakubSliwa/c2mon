@@ -228,7 +228,7 @@ public interface JmsProxy {
    * @param alarmListener the listener to remove
    * @throws JMSException In case of JMS problems
    */
-  void unregisterAlarmListener(final AlarmListener alarmListener) throws JMSException;
+  void unregisterAlarmListener(final AlarmListener alarmListener);
   
   /**
    * Register a listener to be notified of BroadcastMessage events received

@@ -362,19 +362,17 @@ public final class JmsProxyImpl implements JmsProxy, JmsSubscriptionHandler {
   }
 
   @Override
-  public void unregisterAlarmListener(final AlarmListener alarmListener) throws JMSException {
+  public void unregisterAlarmListener(final AlarmListener alarmListener) {
     if (alarmListener == null) {
       throw new NullPointerException("Trying to unregister null alarm listener from JmsProxy.");
     }
 
     if (alarmTopicWrapper.getListenerWrapper().getListenerCount() == 1) { 
-      // this is our last listener!
-      // -> it's time to unsubscribe from the topic
+      // this is our last listener! -> it's time to unsubscribe from the topic
       try {
         alarmTopicWrapper.unsubscribeFromAlarmTopic();
       } catch (JMSException e) {
-        log.error("Did not manage to subscribe To Alarm Topic.", e);
-        throw e;
+        log.error("Did not manage to unsubscribe from JMS Alarm Topic.", e);
       }
     }
 
